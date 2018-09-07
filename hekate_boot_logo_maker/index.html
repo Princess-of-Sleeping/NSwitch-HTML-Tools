@@ -36,9 +36,16 @@
 
 PC, Google chrome recommended<br>
 
+
+
+Select 960x544 image file (png, jpg): <input type="file" id="file_select" onchange="onFileSelected(this)"><br>
+
 <canvas id="c" width="0" height="0"></canvas><br>
 
-Select image file (png, jpg): <input type="file" id="file_select" onchange="onFileSelected(this)">
+<input type="text" id="download_file_name" value="bootlogo.bmp">
+<input type="button" id="download_button" value="Download" onClick="image_download()">
+<input type="button" id="preview_update_button" value="Preview Update" onClick="image_preview()">
+
 
 <br><br>
 
@@ -67,6 +74,11 @@ blue <input type="checkbox" id="or_operation_blue_check">:<input type="number" s
 <script>
 
 var img_size = 0;
+var img_preview_base = null;
+var img_preview_data = null;
+var img_base = null;
+
+
 
 function aaaaa(str){
 
@@ -102,7 +114,77 @@ function num_0_255_func(e){
 	}
 }
 
+function image_modify(image_data){
 
+	if(or_operation_check.checked){
+		for(var i=0;i<img_size;i+=4){
+			if(or_operation_red_check.checked)image_data.data[i+0] |= (or_operation_red.value + 0);//red
+			if(or_operation_green_check.checked)image_data.data[i+1] |= (or_operation_green.value + 0);//green
+			if(or_operation_blue_check.checked)image_data.data[i+2] |= (or_operation_blue.value + 0);//blue
+			//image_data.data[i+3] |= 0xFF;
+		}
+	}
+
+	if(and_operation_check.checked){
+		for(var i=0;i<img_size;i+=4){
+			if(and_operation_red_check.checked)image_data.data[i+0] &= (and_operation_red.value + 0);//red
+			if(and_operation_green_check.checked)image_data.data[i+1] &= (and_operation_green.value + 0);//green
+			if(and_operation_blue_check.checked)image_data.data[i+2] &= (and_operation_blue.value + 0);//blue
+			//image_data.data[i+3] &= 0xFF;
+		}
+	}
+
+	if(invert_color_check.checked){
+		for(var i=0;i<img_size;i+=4){
+			image_data.data[i+0] ^= 0xFF;//red
+			image_data.data[i+1] ^= 0xFF;//green
+			image_data.data[i+2] ^= 0xFF;//blue
+			//image_data.data[i+3] ^= 0xFF;
+		}
+	}
+
+	return image_data.data;
+}
+
+function image_preview(){
+
+	var cv = document.createElement('canvas');
+	cv.width = img_base.naturalWidth;
+	cv.height = img_base.naturalHeight;
+
+	var ct = cv.getContext('2d');
+
+	ct.drawImage(img_base, 0, 0, cv.width, cv.height);
+
+	var image_data = ct.getImageData(0, 0, cv.width, cv.height);
+
+	image_data.data = image_modify(image_data);
+
+	document.getElementById('c').getContext('2d').putImageData(image_data, 0, 0);
+
+}
+
+function image_download(){
+
+	var dl_cv = document.createElement('canvas');
+	dl_cv.width = img_base.naturalHeight;
+	dl_cv.height = img_base.naturalWidth;
+
+	var dl_ct = dl_cv.getContext('2d');
+
+	dl_ct.rotate(270*Math.PI/180);
+	dl_ct.transform(-1, 0, 0, 1, 0, 0);
+	dl_ct.drawImage(img_base, 0, 0, img_base.width, img_base.height);
+
+	var image_data = dl_ct.getImageData(0, 0, dl_cv.width, dl_cv.height);
+
+	image_data.data = image_modify(image_data);
+
+	var dl_bmp_header = MakeBitmapHeader(img_size, dl_cv.width, dl_cv.height);
+
+	file_download([dl_bmp_header, image_data.data], document.getElementById('download_file_name').value);// "bootlogo.bmp"
+
+}
 
 function onFileSelected(input) {
 
@@ -134,23 +216,24 @@ function onImageSetted(e) {
 
 	console.log("onImageSetted");
 
-	var data = createImageData(e.target);
+	console.log(e.target.width);
+	console.log(e.target.height);
 
-/*
-	if(data.width != 544 || data.height != 960){
+	var support_image_width = 1280;
+	var support_image_height = 720;
 
-		alert("support image is 960x544 image");
+	if(e.target.width != support_image_width || e.target.height != support_image_height){
+
+		alert("support image is " + support_image_width + "x" + support_image_height + " image");
 		return 0;
 	}
-*/
-	c.width = data.width;
-	c.height = data.height;
 
-	console.log(data.width);
-	console.log(data.height);
-	console.log("size : 0x" + (img_size).toString(16));
+	img_preview_data = createImageData(e.target);
 
-	document.getElementById('c').getContext('2d').putImageData(data, 0, 0);
+	c.width = img_preview_data.width;
+	c.height = img_preview_data.height;
+
+	document.getElementById('c').getContext('2d').putImageData(img_preview_data, 0, 0);
 
 	file_select.value = null;
 }
@@ -159,58 +242,22 @@ function createImageData(img) {
 
 	console.log("createImageData");
 
-	var cv = document.createElement('canvas');
-	cv.width = img.naturalHeight;
-	cv.height = img.naturalWidth;
+	img_base = img;
 
-	var ct = cv.getContext('2d');
+	var preview_cv = document.createElement('canvas');
+	preview_cv.width = img.naturalWidth;
+	preview_cv.height = img.naturalHeight;
 
-	ct.rotate(270*Math.PI/180);
-	ct.transform(-1, 0, 0, 1, 0, 0);
-	ct.drawImage(img, 0, 0, img.width, img.height);
+	var preview_ct = preview_cv.getContext('2d');
 
-	img_size = cv.width * cv.height * 4;
+	preview_ct.drawImage(img, 0, 0, img.width, img.height);
 
-	var image_data = ct.getImageData(0, 0, cv.width, cv.height);
+	var preview_image_data = preview_ct.getImageData(0, 0, preview_cv.width, preview_cv.height);
 
-/*
-	if(cv.width != 544 || cv.height != 960){
-		return image_data;
-	}
-*/
+	img_size = img.naturalWidth * img.naturalHeight * 4;
 
-	if(or_operation_check.checked){
-		for(var i=0;i<img_size;i+=4){
-			if(or_operation_red_check.checked)image_data.data[i+0] |= (or_operation_red.value + 0);//red
-			if(or_operation_green_check.checked)image_data.data[i+1] |= (or_operation_green.value + 0);//green
-			if(or_operation_blue_check.checked)image_data.data[i+2] |= (or_operation_blue.value + 0);//blue
-			//image_data.data[i+3] |= 0xFF;
-		}
-	}
+	return preview_image_data;
 
-	if(and_operation_check.checked){
-		for(var i=0;i<img_size;i+=4){
-			if(and_operation_red_check.checked)image_data.data[i+0] &= (and_operation_red.value + 0);//red
-			if(and_operation_green_check.checked)image_data.data[i+1] &= (and_operation_green.value + 0);//green
-			if(and_operation_blue_check.checked)image_data.data[i+2] &= (and_operation_blue.value + 0);//blue
-			//image_data.data[i+3] &= 0xFF;
-		}
-	}
-
-	if(invert_color_check.checked){
-		for(var i=0;i<img_size;i+=4){
-			image_data.data[i+0] ^= 0xFF;//red
-			image_data.data[i+1] ^= 0xFF;//green
-			image_data.data[i+2] ^= 0xFF;//blue
-			//image_data.data[i+3] ^= 0xFF;
-		}
-	}
-
-	var bmp_header = MakeBitmapHeader(img_size, cv.width, cv.height);
-
-	file_download([bmp_header, image_data.data], "bootlogo.bmp");
-
-	return image_data;
 }
 
 function MakeBitmapHeader(ImgSize, width, height){
@@ -231,10 +278,10 @@ function MakeBitmapHeader(ImgSize, width, height){
 
 	bmp_header_rw.setUint32(0x22, (ImgSize), true);
 
-	bmp_header_rw.setUint32(0x36, 0x000000FF, true);
-	bmp_header_rw.setUint32(0x3A, 0x0000FF00, true);
-	bmp_header_rw.setUint32(0x3E, 0x00FF0000, true);
-	bmp_header_rw.setUint32(0x42, 0xFF000000, true);
+	bmp_header_rw.setUint32(0x36, 0x000000FF, true);//r
+	bmp_header_rw.setUint32(0x3A, 0x0000FF00, true);//g
+	bmp_header_rw.setUint32(0x3E, 0x00FF0000, true);//b
+	bmp_header_rw.setUint32(0x42, 0xFF000000, true);//a
 
 	bmp_header_rw.setUint32(0x46, aaaaa("BGRs"), true);
 
